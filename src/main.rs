@@ -2,8 +2,8 @@ use std::fs::File;
 use clap::{Arg, App};
 
 // TODO: should be a bit object-oriented or something, instead of globals
-static mut minx:f32 = std::f32::MAX;
-static mut maxx:f32 = std::f32::MIN;
+static mut MINX:f32 = std::f32::MAX;
+static mut MAXX:f32 = std::f32::MIN;
 
 // return the min of two f32s
 fn f32min(a: f32, b:f32) -> f32 {
@@ -19,7 +19,7 @@ fn f32max(a: f32, b:f32) -> f32 {
 
 // convert x from the x range in the flat model into the corresponding angle on the cylindrical model
 unsafe fn x2angle(x: f32) -> f32 {
-    let k = (x - minx) / (maxx - minx); // ranges from 0 to 1
+    let k = (x - MINX) / (MAXX - MINX); // ranges from 0 to 1
     return k * std::f32::consts::PI / 2.0;
 }
 
@@ -67,16 +67,16 @@ fn main() { unsafe {
 
     // find out the range of X coordinates
     for t in &stl.triangles {
-        minx = f32min(minx, t.v1[0]);
-        minx = f32min(minx, t.v2[0]);
-        minx = f32min(minx, t.v3[0]);
+        MINX = f32min(MINX, t.v1[0]);
+        MINX = f32min(MINX, t.v2[0]);
+        MINX = f32min(MINX, t.v3[0]);
 
-        maxx = f32max(maxx, t.v1[0]);
-        maxx = f32max(maxx, t.v2[0]);
-        maxx = f32max(maxx, t.v3[0]);
+        MAXX = f32max(MAXX, t.v1[0]);
+        MAXX = f32max(MAXX, t.v2[0]);
+        MAXX = f32max(MAXX, t.v3[0]);
     }
 
-    println!("X ranges from {} to {}", minx, maxx);
+    println!("X ranges from {} to {}", MINX, MAXX);
 
     let mut newtris = Vec::new();
 
@@ -99,5 +99,5 @@ fn main() { unsafe {
     let mut out = File::create(stlfilename.to_owned() + ".wrap").unwrap();
 
     // write out stl file
-    stl::write_stl(&mut out, &newfile);
+    assert!(stl::write_stl(&mut out, &newfile).is_ok());
 } }
