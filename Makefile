@@ -1,7 +1,7 @@
 all: stlwrap
 
 stlwrap:
-	rustc stlwrap.rs
+	cargo build --release && cp target/release/stlwrap .
 
 clean:
 	rm -f stlwrap
