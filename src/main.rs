@@ -17,7 +17,7 @@ fn f32max(a: f32, b:f32) -> f32 {
     else     { return b; }
 }
 
-// convert x from a given range from the flat model into the corresponding angle on the cylindrical model
+// convert x from the x range in the flat model into the corresponding angle on the cylindrical model
 unsafe fn x2angle(x: f32) -> f32 {
     let k = (x - minx) / (maxx - minx); // ranges from 0 to 1
     return k * std::f32::consts::PI / 2.0;
