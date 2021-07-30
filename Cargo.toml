@@ -7,4 +7,7 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-stl = "0.2.0"
+clap = "2.33"
+
+[dependencies.stl]
+path = "./rust-stl/"
