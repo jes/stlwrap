@@ -44,25 +44,19 @@ fn main() { unsafe {
                  .index(1)
                  .required(true)
                  .help("A cool file"))
-        .arg(Arg::with_name("num")
-                 .short("n")
+        .arg(Arg::with_name("maxlength")
+                 .short("m")
                  .long("number")
                  .takes_value(true)
-                 .help("Five less than your favorite number"))
+                 .help("Maximum length of triangle sides before wrapping"))
         .get_matches();
 
     let stlfilename = matches.value_of("FILE").unwrap_or("input.txt");
 
-    let num_str = matches.value_of("num");
-    match num_str {
-        None => println!("No idea what your favorite number is."),
-        Some(s) => {
-            match s.parse::<i32>() {
-                Ok(n) => println!("Your favorite number must be {}.", n + 5),
-                Err(_) => println!("That's not a number! {}", s),
-            }
-        }
-    }
+    let maxlength_s = matches.value_of("maxlength").unwrap_or("1");
+    let maxlength = maxlength_s.parse::<f32>().unwrap();
+
+    println!("Max. side length is {}", maxlength);
 
     // read in the stl file
     let mut file = File::open(stlfilename).unwrap();
