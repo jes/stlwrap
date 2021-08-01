@@ -5,7 +5,6 @@ use clap::{Arg, App};
 static mut MINX:f32 = std::f32::MAX;
 static mut MAXX:f32 = std::f32::MIN;
 static mut MAXLENGTH:f32 = 3.0;
-static mut MINLENGTH:f32 = 0.001;
 
 // return the min of two f32s
 fn f32min(a: f32, b:f32) -> f32 {
@@ -22,7 +21,7 @@ fn f32max(a: f32, b:f32) -> f32 {
 // convert x from the x range in the flat model into the corresponding angle on the cylindrical model
 unsafe fn x2angle(x: f32) -> f32 {
     let k = (x - MINX) / (MAXX - MINX); // ranges from 0 to 1
-    return k * std::f32::consts::PI / 2.0;
+    return k * std::f32::consts::PI * 2.0;
 }
 
 // wrap (x,y) from the flat model onto the cylindrical model
@@ -42,7 +41,6 @@ fn sidelength(v1: [f32;3], v2: [f32;3]) -> f32 {
     let dy = v1[1] - v2[1];
     let dz = v1[2] - v2[2];
     let l = (dx*dx+dy*dy+dz*dz).sqrt();
-    println!("Side length {},{},{} = {}", dx,dy,dz,l);
     return l;
 }
 
@@ -52,45 +50,57 @@ unsafe fn sidestoolong(t: &stl::Triangle) -> bool {
         || sidelength(t.v3, t.v1) > MAXLENGTH;
 }
 
+fn midpoint(v1: [f32;3], v2: [f32;3]) -> [f32;3] {
+    return [
+        (v1[0]+v2[0])/2.0,
+        (v1[1]+v2[1])/2.0,
+        (v1[2]+v2[2])/2.0,
+    ];
+}
+
 unsafe fn subdivide(t: stl::Triangle, triangles: &mut Vec<stl::Triangle>) {
     if !sidestoolong(&t) {
         triangles.push(t);
         return;
     }
 
-    // split the triangle into 3 smaller ones, each one using 2 of the existing vertices
-    // plus a new vertex at the centroid of the triangle, and recurse
-    let centroid = [
-        (t.v1[0]+t.v2[0]+t.v3[0])/3.0,
-        (t.v1[1]+t.v2[1]+t.v3[1])/3.0,
-        (t.v1[2]+t.v2[2]+t.v3[2])/3.0,
-    ];
+    let v12 = midpoint(t.v1, t.v2);
+    let v23 = midpoint(t.v2, t.v3);
+    let v31 = midpoint(t.v3, t.v1);
 
     let t1 = stl::Triangle {
         normal: t.normal, // XXX: incorrect, but we don't care
         v1: t.v1,
-        v2: t.v2,
-        v3: centroid,
+        v2: v12,
+        v3: v31,
         attr_byte_count: t.attr_byte_count,
     };
     let t2 = stl::Triangle {
         normal: t.normal, // XXX: incorrect, but we don't care
-        v1: t.v1,
-        v2: centroid,
-        v3: t.v3,
+        v1: t.v2,
+        v2: v23,
+        v3: v12,
         attr_byte_count: t.attr_byte_count,
     };
     let t3 = stl::Triangle {
         normal: t.normal, // XXX: incorrect, but we don't care
-        v1: centroid,
-        v2: t.v2,
-        v3: t.v3,
+        v1: t.v3,
+        v2: v31,
+        v3: v23,
+        attr_byte_count: t.attr_byte_count,
+    };
+    let t4 = stl::Triangle {
+        normal: t.normal, // XXX: incorrect, but we don't care
+        v1: v12,
+        v2: v23,
+        v3: v31,
         attr_byte_count: t.attr_byte_count,
     };
 
     subdivide(t1, triangles);
     subdivide(t2, triangles);
     subdivide(t3, triangles);
+    subdivide(t4, triangles);
 }
 
 fn main() { unsafe {
@@ -115,8 +125,6 @@ fn main() { unsafe {
     let maxlength = maxlength_s.parse::<f32>().unwrap();
     MAXLENGTH = maxlength;
 
-    println!("Max. side length is {}", maxlength);
-
     // read in the stl file
     let mut file = File::open(stlfilename).unwrap();
     let stl = stl::read_stl(&mut file).unwrap();
@@ -131,8 +139,6 @@ fn main() { unsafe {
         MAXX = f32max(MAXX, t.v2[0]);
         MAXX = f32max(MAXX, t.v3[0]);
     }
-
-    println!("X ranges from {} to {}", MINX, MAXX);
 
     let mut newtris = Vec::new();
 
@@ -158,7 +164,7 @@ fn main() { unsafe {
     let newfile = stl::BinaryStlFile {
         header: stl::BinaryStlHeader {
             header: stl.header.header,
-            num_triangles: newtris.len() as u32,
+            num_triangles: newtris2.len() as u32,
         },
         triangles: newtris2,
     };
