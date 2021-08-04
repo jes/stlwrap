@@ -69,28 +69,28 @@ unsafe fn subdivide(t: stl::Triangle, triangles: &mut Vec<stl::Triangle>) {
     let v31 = midpoint(t.v3, t.v1);
 
     let t1 = stl::Triangle {
-        normal: t.normal, // XXX: incorrect, but we don't care
+        normal: t.normal,
         v1: t.v1,
         v2: v12,
         v3: v31,
         attr_byte_count: t.attr_byte_count,
     };
     let t2 = stl::Triangle {
-        normal: t.normal, // XXX: incorrect, but we don't care
+        normal: t.normal,
         v1: t.v2,
         v2: v23,
         v3: v12,
         attr_byte_count: t.attr_byte_count,
     };
     let t3 = stl::Triangle {
-        normal: t.normal, // XXX: incorrect, but we don't care
+        normal: t.normal,
         v1: t.v3,
         v2: v31,
         v3: v23,
         attr_byte_count: t.attr_byte_count,
     };
     let t4 = stl::Triangle {
-        normal: t.normal, // XXX: incorrect, but we don't care
+        normal: t.normal,
         v1: v12,
         v2: v23,
         v3: v31,
@@ -101,6 +101,20 @@ unsafe fn subdivide(t: stl::Triangle, triangles: &mut Vec<stl::Triangle>) {
     subdivide(t2, triangles);
     subdivide(t3, triangles);
     subdivide(t4, triangles);
+}
+
+// https://math.stackexchange.com/a/305914
+// return the normal vector of a triangle with the given 3 vertices
+fn trinormal(v1: [f32;3], v2: [f32;3], v3: [f32;3]) -> [f32;3] {
+    let v = [v2[0]-v1[0], v2[1]-v1[1], v2[2]-v1[2]];
+    let w = [v3[0]-v1[0], v3[1]-v1[1], v3[2]-v1[2]];
+
+    let nx = (v[1]*w[2]) - (v[2]*w[1]);
+    let ny = (v[2]*w[0]) - (v[0]*w[2]);
+    let nz = (v[0]*w[1]) - (v[1]*w[0]);
+
+    let len = (nx*nx+ny*ny+nz*nz).sqrt();
+    return [nx/len, ny/len, nz/len];
 }
 
 fn main() { unsafe {
@@ -151,11 +165,14 @@ fn main() { unsafe {
 
     // rewrite vertices to wrap them around a cylinder
     for t in &newtris {
+        let v1 = wrapvertex(t.v1);
+        let v2 = wrapvertex(t.v2);
+        let v3 = wrapvertex(t.v3);
         newtris2.push(stl::Triangle {
-            normal: t.normal, // XXX: incorrect, but we don't care
-            v1: wrapvertex(t.v1),
-            v2: wrapvertex(t.v2),
-            v3: wrapvertex(t.v3),
+            normal: trinormal(v1,v2,v3),
+            v1: v1,
+            v2: v2,
+            v3: v3,
             attr_byte_count: t.attr_byte_count,
         });
     }
