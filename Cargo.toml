@@ -8,6 +8,4 @@ edition = "2018"
 
 [dependencies]
 clap = "2.33"
-
-[dependencies.stl]
-path = "./rust-stl/"
+stl = "0.2.1"
