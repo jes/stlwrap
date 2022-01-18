@@ -1,5 +1,6 @@
 use std::fs::File;
-use stl;
+use stl_io;
+use stl_io::{Normal,Vertex};
 use clap::{Arg, App};
 
 // TODO: should be a bit object-oriented or something, instead of globals
@@ -32,12 +33,12 @@ unsafe fn wrapxy(x: f32, y: f32) -> (f32, f32) {
     return (radius * angle.cos(), radius * angle.sin());
 }
 
-unsafe fn wrapvertex(v: [f32;3]) -> [f32;3] {
+unsafe fn wrapvertex(v: Vertex) -> Vertex {
     let (x,y) = wrapxy(v[0], v[1]);
-    return [x,y,v[2]];
+    return Vertex::new([x,y,v[2]]);
 }
 
-fn sidelength(v1: [f32;3], v2: [f32;3]) -> f32 {
+fn sidelength(v1: Vertex, v2: Vertex) -> f32 {
     let dx = v1[0] - v2[0];
     let dy = v1[1] - v2[1];
     let dz = v1[2] - v2[2];
@@ -45,57 +46,49 @@ fn sidelength(v1: [f32;3], v2: [f32;3]) -> f32 {
     return l;
 }
 
-unsafe fn sidestoolong(t: &stl::Triangle) -> bool {
-    return sidelength(t.v1, t.v2) > MAXLENGTH
-        || sidelength(t.v2, t.v3) > MAXLENGTH
-        || sidelength(t.v3, t.v1) > MAXLENGTH;
+unsafe fn sidestoolong(t: &stl_io::Triangle) -> bool {
+    return sidelength(t.vertices[0], t.vertices[1]) > MAXLENGTH
+        || sidelength(t.vertices[1], t.vertices[2]) > MAXLENGTH
+        || sidelength(t.vertices[2], t.vertices[0]) > MAXLENGTH;
 }
 
-fn midpoint(v1: [f32;3], v2: [f32;3]) -> [f32;3] {
-    return [
+fn midpoint(v1: Vertex, v2: Vertex) -> Vertex {
+    return Vertex::new([
         (v1[0]+v2[0])/2.0,
         (v1[1]+v2[1])/2.0,
         (v1[2]+v2[2])/2.0,
-    ];
+    ]);
 }
 
-unsafe fn subdivide(t: stl::Triangle, triangles: &mut Vec<stl::Triangle>) {
+unsafe fn subdivide(t: stl_io::Triangle, triangles: &mut Vec<stl_io::Triangle>) {
     if !sidestoolong(&t) {
         triangles.push(t);
         return;
     }
 
-    let v12 = midpoint(t.v1, t.v2);
-    let v23 = midpoint(t.v2, t.v3);
-    let v31 = midpoint(t.v3, t.v1);
+    let v1 = t.vertices[0];
+    let v2 = t.vertices[1];
+    let v3 = t.vertices[2];
 
-    let t1 = stl::Triangle {
+    let v12 = midpoint(v1, v2);
+    let v23 = midpoint(v2, v3);
+    let v31 = midpoint(v3, v1);
+
+    let t1 = stl_io::Triangle {
         normal: t.normal,
-        v1: t.v1,
-        v2: v12,
-        v3: v31,
-        attr_byte_count: t.attr_byte_count,
+        vertices: [v1, v12, v31],
     };
-    let t2 = stl::Triangle {
+    let t2 = stl_io::Triangle {
         normal: t.normal,
-        v1: t.v2,
-        v2: v23,
-        v3: v12,
-        attr_byte_count: t.attr_byte_count,
+        vertices: [v2,v23,v12],
     };
-    let t3 = stl::Triangle {
+    let t3 = stl_io::Triangle {
         normal: t.normal,
-        v1: t.v3,
-        v2: v31,
-        v3: v23,
-        attr_byte_count: t.attr_byte_count,
+        vertices: [v3,v31,v23],
     };
-    let t4 = stl::Triangle {
+    let t4 = stl_io::Triangle {
         normal: t.normal,
-        v1: v12,
-        v2: v23,
-        v3: v31,
-        attr_byte_count: t.attr_byte_count,
+        vertices:[v12,v23,v31],
     };
 
     subdivide(t1, triangles);
@@ -106,7 +99,7 @@ unsafe fn subdivide(t: stl::Triangle, triangles: &mut Vec<stl::Triangle>) {
 
 // https://math.stackexchange.com/a/305914
 // return the normal vector of a triangle with the given 3 vertices
-fn trinormal(v1: [f32;3], v2: [f32;3], v3: [f32;3]) -> [f32;3] {
+fn trinormal(v1: Vertex, v2: Vertex, v3: Vertex) -> Normal {
     let v = [v2[0]-v1[0], v2[1]-v1[1], v2[2]-v1[2]];
     let w = [v3[0]-v1[0], v3[1]-v1[1], v3[2]-v1[2]];
 
@@ -115,7 +108,7 @@ fn trinormal(v1: [f32;3], v2: [f32;3], v3: [f32;3]) -> [f32;3] {
     let nz = (v[0]*w[1]) - (v[1]*w[0]);
 
     let len = (nx*nx+ny*ny+nz*nz).sqrt();
-    return [nx/len, ny/len, nz/len];
+    return Normal::new([nx/len, ny/len, nz/len]);
 }
 
 fn main() { unsafe {
@@ -142,52 +135,45 @@ fn main() { unsafe {
 
     // read in the stl file
     let mut file = File::open(stlfilename).unwrap();
-    let stl = stl::read_stl(&mut file).unwrap();
+    let stl = stl_io::read_stl(&mut file).unwrap();
 
     // find out the range of X coordinates
-    for t in &stl.triangles {
-        MINX = f32min(MINX, t.v1[0]);
-        MINX = f32min(MINX, t.v2[0]);
-        MINX = f32min(MINX, t.v3[0]);
+    for t in &stl.faces {
+        MINX = f32min(MINX, stl.vertices[t.vertices[0]][0]);
+        MINX = f32min(MINX, stl.vertices[t.vertices[1]][0]);
+        MINX = f32min(MINX, stl.vertices[t.vertices[2]][0]);
 
-        MAXX = f32max(MAXX, t.v1[0]);
-        MAXX = f32max(MAXX, t.v2[0]);
-        MAXX = f32max(MAXX, t.v3[0]);
+        MAXX = f32max(MAXX, stl.vertices[t.vertices[0]][0]);
+        MAXX = f32max(MAXX, stl.vertices[t.vertices[1]][0]);
+        MAXX = f32max(MAXX, stl.vertices[t.vertices[2]][0]);
     }
 
     let mut newtris = Vec::new();
 
     // subdivide triangles with long sides so that all sides are less than 1mm long
-    for t in stl.triangles {
-        subdivide(t, &mut newtris);
+    for t in stl.faces {
+        subdivide(stl_io::Triangle {
+            normal: t.normal,
+            vertices: [stl.vertices[t.vertices[0]],
+                       stl.vertices[t.vertices[1]],
+                       stl.vertices[t.vertices[2]]],
+        }, &mut newtris);
     }
 
     let mut newtris2 = Vec::new();
 
     // rewrite vertices to wrap them around a cylinder
     for t in &newtris {
-        let v1 = wrapvertex(t.v1);
-        let v2 = wrapvertex(t.v2);
-        let v3 = wrapvertex(t.v3);
-        newtris2.push(stl::Triangle {
+        let v1 = wrapvertex(t.vertices[0]);
+        let v2 = wrapvertex(t.vertices[1]);
+        let v3 = wrapvertex(t.vertices[2]);
+        newtris2.push(stl_io::Triangle {
             normal: trinormal(v1,v2,v3),
-            v1: v1,
-            v2: v2,
-            v3: v3,
-            attr_byte_count: t.attr_byte_count,
+            vertices: [v1, v2,v3],
         });
     }
 
-    // create new stl file object with new triangles
-    let newfile = stl::BinaryStlFile {
-        header: stl::BinaryStlHeader {
-            header: stl.header.header,
-            num_triangles: newtris2.len() as u32,
-        },
-        triangles: newtris2,
-    };
-
     // write out stl file
     let mut out = File::create(stlfilename.to_owned() + ".wrap").unwrap();
-    assert!(stl::write_stl(&mut out, &newfile).is_ok());
+    stl_io::write_stl(&mut out, newtris2.iter()).unwrap();
 } }
