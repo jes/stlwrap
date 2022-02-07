@@ -62,6 +62,19 @@ fn midpoint(v1: Vertex, v2: Vertex) -> Vertex {
 }
 
 unsafe fn subdivide(t: stl_io::Triangle, triangles: &mut Vec<stl_io::Triangle>) {
+    // In order to make sure we don't produce non-manifold outputs, we need to
+    // make sure we only split up edges that are too long; if we split up any
+    // edge that is *not* too long, then the triangle on the other side of that
+    // edge might not end up splitting the edge. At that point we've split the
+    // edge on one side but not on the other, leaving 3 vertices that don't have
+    // a face connecting them (albeit these vertices are in a straight line! But
+    // it still counts as non-manifold).
+    // The easy solution is to skip the "if allsidestoolong(&t) { ... }" part
+    // and always run the "else { ... }" block instead. The problem with this
+    // is that it tends to produce an enormous number of very long and thin
+    // triangles, which results in huge output files. It's better if we notice
+    // (the extremely common case) when *all* sides of a triangle need to be
+    // split up, and split them all up in one go.
     if allsidestoolong(&t) {
         // all sides are too long: split into 4
         let v1 = t.vertices[0];
