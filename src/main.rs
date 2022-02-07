@@ -46,11 +46,12 @@ fn sidelength(v1: Vertex, v2: Vertex) -> f32 {
     return l;
 }
 
-unsafe fn sidestoolong(t: &stl_io::Triangle) -> bool {
+unsafe fn allsidestoolong(t: &stl_io::Triangle) -> bool {
     return sidelength(t.vertices[0], t.vertices[1]) > MAXLENGTH
-        || sidelength(t.vertices[1], t.vertices[2]) > MAXLENGTH
-        || sidelength(t.vertices[2], t.vertices[0]) > MAXLENGTH;
+        && sidelength(t.vertices[1], t.vertices[2]) > MAXLENGTH
+        && sidelength(t.vertices[2], t.vertices[0]) > MAXLENGTH;
 }
+
 
 fn midpoint(v1: Vertex, v2: Vertex) -> Vertex {
     return Vertex::new([
@@ -61,40 +62,69 @@ fn midpoint(v1: Vertex, v2: Vertex) -> Vertex {
 }
 
 unsafe fn subdivide(t: stl_io::Triangle, triangles: &mut Vec<stl_io::Triangle>) {
-    if !sidestoolong(&t) {
+    if allsidestoolong(&t) {
+        // all sides are too long: split into 4
+        let v1 = t.vertices[0];
+        let v2 = t.vertices[1];
+        let v3 = t.vertices[2];
+
+        let v12 = midpoint(v1, v2);
+        let v23 = midpoint(v2, v3);
+        let v31 = midpoint(v3, v1);
+
+        let t1 = stl_io::Triangle {
+            normal: t.normal,
+            vertices: [v1, v12, v31],
+        };
+        let t2 = stl_io::Triangle {
+            normal: t.normal,
+            vertices: [v2,v23,v12],
+        };
+        let t3 = stl_io::Triangle {
+            normal: t.normal,
+            vertices: [v3,v31,v23],
+        };
+        let t4 = stl_io::Triangle {
+            normal: t.normal,
+            vertices:[v12,v23,v31],
+        };
+
+        subdivide(t1, triangles);
+        subdivide(t2, triangles);
+        subdivide(t3, triangles);
+        subdivide(t4, triangles);
+    } else {
+        // maybe some sides are too long: if so, split into 2
+        for i in 0..=2 {
+            let v1 = t.vertices[i];
+            let v2 = t.vertices[(i+1)%3];
+            let v3 = t.vertices[(i+2)%3];
+
+            if sidelength(v1, v2) <= MAXLENGTH {
+                continue;
+            }
+
+            let vmid = midpoint(v1, v2);
+
+            // vertices are in anti-clockwise order
+            let t1 = stl_io::Triangle {
+                normal: t.normal,
+                vertices: [v1, vmid, v3],
+            };
+            let t2 = stl_io::Triangle {
+                normal: t.normal,
+                vertices: [v2,v3,vmid],
+            };
+
+            subdivide(t1, triangles);
+            subdivide(t2, triangles);
+
+            return;
+        }
+
+        // didn't find any sides too long: leave this triangle unchanged
         triangles.push(t);
-        return;
     }
-
-    let v1 = t.vertices[0];
-    let v2 = t.vertices[1];
-    let v3 = t.vertices[2];
-
-    let v12 = midpoint(v1, v2);
-    let v23 = midpoint(v2, v3);
-    let v31 = midpoint(v3, v1);
-
-    let t1 = stl_io::Triangle {
-        normal: t.normal,
-        vertices: [v1, v12, v31],
-    };
-    let t2 = stl_io::Triangle {
-        normal: t.normal,
-        vertices: [v2,v23,v12],
-    };
-    let t3 = stl_io::Triangle {
-        normal: t.normal,
-        vertices: [v3,v31,v23],
-    };
-    let t4 = stl_io::Triangle {
-        normal: t.normal,
-        vertices:[v12,v23,v31],
-    };
-
-    subdivide(t1, triangles);
-    subdivide(t2, triangles);
-    subdivide(t3, triangles);
-    subdivide(t4, triangles);
 }
 
 // https://math.stackexchange.com/a/305914
